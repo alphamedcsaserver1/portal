@@ -1,0 +1,459 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sales BTS App</title>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <style>
+        :root { --primary: #2563eb; --secondary: #1e40af; --success: #22c55e; --gray: #9ca3af; --bg: #f3f4f6; --text: #1f2937; --warning: #f59e0b; }
+        body { font-family: 'Segoe UI', sans-serif; margin: 0; background: var(--bg); color: var(--text); }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .hidden { display: none !important; }
+        
+        /* Privacy Modal & General Modals */
+        #privacy-modal, .custom-modal { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); z-index: 9999; display: flex; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 30px; border-radius: 10px; max-width: 500px; width: 90%; position: relative; }
+        
+        /* Components */
+        .btn { padding: 12px; border: none; border-radius: 5px; cursor: pointer; font-weight: bold; width: 100%; margin-top: 10px; transition: 0.3s; text-align: center; text-decoration: none; display: block; box-sizing: border-box; }
+        .btn-primary { background: var(--primary); color: white; }
+        .btn-success { background: var(--success); color: white; }
+        .btn-warning { background: var(--warning); color: white; }
+        .auth-box { background: white; padding: 30px; border-radius: 10px; max-width: 400px; margin: 50px auto; box-shadow: 0 4px 6px rgba(0,0,0,0.1); }
+        input { width: 100%; padding: 12px; margin: 8px 0; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        
+        /* Dashboard */
+        .dashboard-header { background: white; padding: 20px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; margin-bottom: 20px; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        .code-box { padding: 10px 20px; border-radius: 5px; font-family: monospace; font-size: 1.2em; font-weight: bold; margin-top: 5px; display: inline-block; }
+        .code-inactive { background: #e5e7eb; color: #6b7280; border: 2px dashed #9ca3af; }
+        .code-active { background: #dcfce7; color: #166534; border: 2px solid #22c55e; }
+        
+        .nav-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 20px; }
+        .nav-btn { background: white; border: 1px solid var(--primary); color: var(--primary); padding: 15px; border-radius: 8px; text-align: center; cursor: pointer; }
+        .nav-btn:hover { background: var(--primary); color: white; }
+        
+        table { width: 100%; border-collapse: collapse; background: white; border-radius: 8px; overflow: hidden; }
+        th, td { padding: 15px; text-align: left; border-bottom: 1px solid #eee; }
+        th { background: #f8fafc; }
+        .pagination { display: flex; justify-content: center; gap: 10px; margin-top: 20px; align-items: center; }
+        
+        @media (max-width: 600px) { .dashboard-header { flex-direction: column; text-align: center; } }
+    </style>
+</head>
+<body>
+
+    <div id="privacy-modal">
+        <div class="modal-content">
+            <h2>Data Privacy Notice</h2>
+            <p>Your information is gathered for <b>team coordination, assistance, and verification</b> in accordance with the Data Privacy Act.</p>
+            <p>We handle your details securely to ensure a safe reselling environment.</p>
+            <hr>
+            <div style="margin: 15px 0;">
+                <input type="checkbox" id="privacy-check" style="width: auto;">
+                <label for="privacy-check"> I agree to the terms and conditions.</label>
+            </div>
+            <button class="btn btn-primary" onclick="acceptPrivacy()">Continue to Website</button>
+        </div>
+    </div>
+
+    <div id="auth-section" class="hidden">
+        <div style="text-align: center; padding: 40px 20px;">
+            <h1>BTS Online Sales</h1>
+            <p>Empowering Resellers with Override Commissions</p>
+        </div>
+
+        <div id="login-form" class="auth-box">
+            <h2>Login</h2>
+            <input type="text" id="login-user" placeholder="Username">
+            <input type="password" id="login-pass" placeholder="Password">
+            <button class="btn btn-primary" onclick="handleLogin()">Log In</button>
+            <p style="text-align: center;">New here? <a href="#" onclick="toggleAuth('reg')">Register</a></p>
+        </div>
+
+        <div id="register-form" class="auth-box hidden">
+            <h2>Create Account</h2>
+            <input type="text" id="reg-user" placeholder="User Name">
+            <input type="password" id="reg-pass" placeholder="Password">
+            <input type="text" id="reg-fname" placeholder="First Name">
+            <input type="text" id="reg-lname" placeholder="Last Name">
+            <input type="text" id="reg-pin" placeholder="5-Digit PIN" maxlength="5">
+            <input type="text" id="reg-inviter" placeholder="Inviter Code ">
+            
+            <div style="background: #f0fdf4; padding: 10px; border-radius: 5px; margin: 10px 0; font-size: 0.9em;">
+                Security: <span id="captcha-text"></span> = 
+                <input type="number" id="captcha-ans" style="width: 60px; display: inline; padding: 5px;">
+            </div>
+            <button class="btn btn-success" onclick="handleRegister()">Register Now</button>
+            <p style="text-align: center;"><a href="#" onclick="toggleAuth('login')">Back to Login</a></p>
+        </div>
+    </div>
+
+    <div id="dashboard-section" class="hidden">
+        <div class="container">
+            <div class="dashboard-header">
+                <div>
+                    <h2>Welcome, <span id="display-fname"></span>!</h2>
+                    <p>Upline: <b id="display-upline">None</b></p>
+                </div>
+                <div style="text-align: center;">
+                    <small>Inviter/Membership Code:</small><br>
+                    <div id="display-memcode" class="code-box">------</div>
+                </div>
+                <button class="btn" style="width: auto; background: #ef4444; color: white;" onclick="logout()">Logout</button>
+            </div>
+
+            <div class="nav-grid">
+                <div class="nav-btn" onclick="showTab('home')">Dashboard</div>
+                <div class="nav-btn" onclick="showTab('downlines')">Check Downlines</div>
+                <div class="nav-btn" onclick="showTab('sales')">Sales & Services</div>
+                <div class="nav-btn" onclick="showTab('points')">View Points</div>
+                <div class="nav-btn" onclick="showTab('edit-profile')">Edit Profile</div>
+                <div class="nav-btn" style="border-color: var(--warning); color: var(--warning);" onclick="openConversion()">Request Conversion</div>
+                <div class="nav-btn" style="border-color: #10b981;" onclick="openActivate()">Activate Account</div>
+            </div>
+
+            <div id="tab-home" class="tab-content">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div class="auth-box" style="margin: 0; max-width: 100%; text-align: center;">
+                        <h3>Direct Points</h3>
+                        <h1 id="pts-direct">0</h1>
+                    </div>
+                    <div class="auth-box" style="margin: 0; max-width: 100%; text-align: center;">
+                        <h3>Override Points</h3>
+                        <h1 id="pts-override">0</h1>
+                    </div>
+                </div>
+            </div>
+
+            <div id="tab-edit-profile" class="tab-content hidden">
+                <div class="auth-box" style="margin: 0 auto; max-width: 500px;">
+                    <h3>Edit My Profile</h3>
+                    <label><small>Username</small></label>
+                    <input type="text" id="edit-user" placeholder="Username">
+                    
+                    <label><small>Password</small></label>
+                    <input type="text" id="edit-pass" placeholder="Password">
+                    
+                    <label><small>First Name</small></label>
+                    <input type="text" id="edit-fname" placeholder="First Name">
+                    
+                    <label><small>Last Name</small></label>
+                    <input type="text" id="edit-lname" placeholder="Last Name">
+                    
+                    <label><small>5-Digit PIN</small></label>
+                    <input type="text" id="edit-pin" placeholder="PIN" maxlength="5">
+                    
+                    <label><small>Inviter Code (Locked)</small></label>
+                    <input type="text" id="edit-inviter" disabled style="background: #f3f4f6; color: #9ca3af;">
+                    
+                    <button class="btn btn-primary" onclick="updateProfile()">Save Changes</button>
+                </div>
+            </div>
+
+            <div id="tab-downlines" class="tab-content hidden">
+                <h3>My Downline Team</h3>
+                <div id="downline-list"></div>
+                <div class="pagination">
+                    <button onclick="prevPage('downlines')">Prev</button>
+                    <span id="page-downlines">1</span>
+                    <button onclick="nextPage('downlines')">Next</button>
+                </div>
+            </div>
+
+            <div id="tab-sales" class="tab-content hidden">
+                <h3>Available Sales / Services</h3>
+                <div id="sales-list"></div>
+                <div class="pagination">
+                    <button onclick="prevPage('sales')">Prev</button>
+                    <span id="page-sales">1</span>
+                    <button onclick="nextPage('sales')">Next</button>
+                </div>
+            </div>
+
+            <div id="tab-points" class="tab-content hidden">
+                <h3>Points Summary</h3>
+                <table>
+                    <tr><th>Category</th><th>Points</th></tr>
+                    <tr><td>Direct Points</td><td id="det-direct">0</td></tr>
+                    <tr><td>Indirect Override 1</td><td id="det-over1">0</td></tr>
+                    <tr><td>Indirect Override 2</td><td id="det-over2">0</td></tr>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <div id="conversion-modal" class="custom-modal hidden">
+        <div class="modal-content">
+            <h2 style="margin-top:0;">Points Conversion</h2>
+            <p>Convert your earned points into cash or rewards.</p>
+            <div style="background: #fffbeb; padding: 15px; border-radius: 8px; border: 1px solid #fde68a; margin-bottom: 20px;">
+                <p style="margin: 0; color: #92400e;"><b>Total Redeemable Points:</b></p>
+                <h2 style="margin: 5px 0; color: #b45309;" id="modal-total-pts">0</h2>
+            </div>
+            <p>To process your conversion, please click the button below to message our support team.</p>
+            <a href="https://m.me/61578341193853" target="_blank" class="btn btn-warning">Request Assistance via Messenger</a>
+            <button class="btn" style="background: #e5e7eb;" onclick="closeConversion()">Close</button>
+        </div>
+    </div>
+
+    <div id="activate-modal" class="hidden" style="position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); display: flex; justify-content: center; align-items: center; z-index: 10000;">
+        <div class="modal-content">
+            <h3>Activate My Account</h3>
+            <p>Enter the code from the Vitalis Generator App.</p>
+            <input type="text" id="access-code-in" placeholder="Access Code">
+            <button class="btn btn-success" onclick="processActivation()">Verify & Activate</button>
+            <button class="btn" onclick="document.getElementById('activate-modal').classList.add('hidden')">Cancel</button>
+        </div>
+    </div>
+
+    <script>
+        // Placeholders for GitHub deployment
+        const SUPABASE_URL = "https://gozyvbieoweqbebxqsja.supabase.co";
+        const SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imdvenl2Ymllb3dlcWJlYnhxc2phIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Njg2NjE3MTYsImV4cCI6MjA4NDIzNzcxNn0.OerZpwDk7BPUti7a-oLUwUYIEKIALeH5uS6HUabfkoo";
+        const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+        const VITALIS_URL = "https://wmciiqeywkluzkslzsrq.supabase.co";
+        const VITALIS_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndtY2lpcWV5d2tsdXprc2x6c3JxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQyNDk0MjksImV4cCI6MjA3OTgyNTQyOX0.qVXO8GcXW8AsjWT4N-zkfW5B0g5qijoPX2mOZc4btVQ";
+        const vitalisClient = supabase.createClient(VITALIS_URL, VITALIS_KEY);
+
+        let user = null;
+        let captchaVal = 0;
+        let pages = { downlines: 0, sales: 0 };
+        let totalPointsCalculated = 0;
+
+        window.onload = () => {
+            if(localStorage.getItem('bts_privacy')) {
+                document.getElementById('privacy-modal').style.display = 'none';
+                document.getElementById('auth-section').classList.remove('hidden');
+            }
+            newCaptcha();
+        };
+
+        function acceptPrivacy() {
+            if(document.getElementById('privacy-check').checked) {
+                localStorage.setItem('bts_privacy', 'true');
+                document.getElementById('privacy-modal').style.display = 'none';
+                document.getElementById('auth-section').classList.remove('hidden');
+            } else { alert("You must agree to continue."); }
+        }
+
+        function newCaptcha() {
+            let a = Math.floor(Math.random() * 9) + 1;
+            let b = Math.floor(Math.random() * 9) + 1;
+            captchaVal = a + b;
+            document.getElementById('captcha-text').innerText = `${a} + ${b}`;
+        }
+
+        function toggleAuth(v) {
+            document.getElementById('login-form').classList.toggle('hidden', v === 'reg');
+            document.getElementById('register-form').classList.toggle('hidden', v === 'login');
+        }
+
+        async function handleLogin() {
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            
+            const { data, error } = await client.from('profiles').select('*').eq('username', u).eq('password', p).single();
+            
+            if(error || !data) return alert("Login failed. Check credentials.");
+            
+            if(data.status === 'SUSPENDED') {
+                alert("Account is currently in freeze mode. Please contact admin.");
+                return;
+            }
+
+            user = data;
+            loadDashboard();
+        }
+
+        async function handleRegister() {
+            if(parseInt(document.getElementById('captcha-ans').value) !== captchaVal) return alert("Spam check failed.");
+            
+            const payload = {
+                username: document.getElementById('reg-user').value,
+                password: document.getElementById('reg-pass').value,
+                first_name: document.getElementById('reg-fname').value,
+                last_name: document.getElementById('reg-lname').value,
+                pin_code: document.getElementById('reg-pin').value,
+                inviter_code: document.getElementById('reg-inviter').value,
+                status: 'ACTIVE'
+            };
+
+            if(Object.values(payload).some(v => !v)) return alert("Incomplete information.");
+
+            let upline_id = null;
+            if (payload.inviter_code === "UL102021") {
+                upline_id = null; 
+            } else {
+                const { data: inviter } = await client.from('profiles').select('id, first_name').eq('membership_code', payload.inviter_code).single();
+                if(!inviter) return alert("Invalid Inviter Code.");
+                upline_id = inviter.id;
+            }
+
+            const mCode = Math.random().toString(36).substring(2,5).toUpperCase() + Math.floor(100 + Math.random() * 900);
+            
+            const { error } = await client.from('profiles').insert([{ ...payload, upline_id: upline_id, membership_code: mCode }]);
+            if(error) return alert("Registration failed: " + error.message);
+            
+            alert("Registered! Your code is " + mCode);
+            toggleAuth('login');
+        }
+
+        async function loadDashboard() {
+            document.getElementById('auth-section').classList.add('hidden');
+            document.getElementById('dashboard-section').classList.remove('hidden');
+            document.getElementById('display-fname').innerText = user.first_name;
+            
+            const codeEl = document.getElementById('display-memcode');
+            codeEl.innerText = user.membership_code;
+            codeEl.className = user.is_active ? 'code-box code-active' : 'code-box code-inactive';
+
+            if(user.upline_id) {
+                const { data: upline } = await client.from('profiles').select('first_name, last_name').eq('id', user.upline_id).single();
+                if(upline) document.getElementById('display-upline').innerText = upline.first_name + " " + upline.last_name;
+            } else {
+                document.getElementById('display-upline').innerText = "ROOT (Admin)";
+            }
+
+            document.getElementById('edit-user').value = user.username;
+            document.getElementById('edit-pass').value = user.password;
+            document.getElementById('edit-fname').value = user.first_name;
+            document.getElementById('edit-lname').value = user.last_name;
+            document.getElementById('edit-pin').value = user.pin_code;
+            document.getElementById('edit-inviter').value = user.inviter_code;
+
+            refreshPoints();
+        }
+
+        async function updateProfile() {
+            const updates = {
+                username: document.getElementById('edit-user').value,
+                password: document.getElementById('edit-pass').value,
+                first_name: document.getElementById('edit-fname').value,
+                last_name: document.getElementById('edit-lname').value,
+                pin_code: document.getElementById('edit-pin').value
+            };
+
+            const { error } = await client.from('profiles').update(updates).eq('id', user.id);
+            
+            if(error) {
+                alert("Update failed: " + error.message);
+            } else {
+                alert("Profile updated successfully!");
+                user = { ...user, ...updates };
+                document.getElementById('display-fname').innerText = user.first_name;
+            }
+        }
+
+        async function refreshPoints() {
+            const { data } = await client.from('points_ledger').select('*').eq('user_id', user.id);
+            let d = 0, o1 = 0, o2 = 0;
+            data?.forEach(p => {
+                if(p.type === 'DIRECT') d += parseFloat(p.points);
+                if(p.type === 'INDIRECT_1') o1 += parseFloat(p.points);
+                if(p.type === 'INDIRECT_2') o2 += parseFloat(p.points);
+            });
+            totalPointsCalculated = d + o1 + o2;
+            document.getElementById('pts-direct').innerText = d;
+            document.getElementById('pts-override').innerText = (o1 + o2);
+            document.getElementById('det-direct').innerText = d;
+            document.getElementById('det-over1').innerText = o1;
+            document.getElementById('det-over2').innerText = o2;
+            document.getElementById('modal-total-pts').innerText = totalPointsCalculated;
+        }
+
+        function showTab(t) {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById('tab-' + t).classList.remove('hidden');
+            if(t === 'downlines') loadDownlines();
+            if(t === 'sales') loadSales();
+        }
+
+        async function loadDownlines() {
+            const { data } = await client.from('profiles').select('*').eq('upline_id', user.id).range(pages.downlines*10, (pages.downlines*10)+9);
+            let h = '<table><tr><th>Name</th><th>Registered</th><th>Status</th></tr>';
+            if (data && data.length > 0) {
+                data.forEach(d => {
+                    h += `<tr><td>${d.first_name}</td><td>${new Date(d.created_at).toLocaleDateString()}</td><td>${d.is_active?'Active':'Pending'}</td></tr>`;
+                });
+            } else {
+                h += '<tr><td colspan="3" style="text-align:center;">No downlines yet</td></tr>';
+            }
+            document.getElementById('downline-list').innerHTML = h + '</table>';
+        }
+
+        async function loadSales() {
+            const { data } = await client.from('sales').select('*').eq('user_id', user.id).range(pages.sales*10, (pages.sales*10)+9);
+            let h = '<table><tr><th>Service</th><th>Points</th><th>Date</th></tr>';
+            if (data && data.length > 0) {
+                data.forEach(s => {
+                    h += `<tr><td>${s.item_name || 'Service'}</td><td>${s.points}</td><td>${new Date(s.created_at).toLocaleDateString()}</td></tr>`;
+                });
+            } else {
+                 h += '<tr><td colspan="3" style="text-align:center;">No sales records found</td></tr>';
+            }
+            document.getElementById('sales-list').innerHTML = h + '</table>';
+        }
+
+        function openActivate() { document.getElementById('activate-modal').classList.remove('hidden'); }
+
+        /* Points Conversion Modal Functions */
+        function openConversion() {
+            document.getElementById('modal-total-pts').innerText = totalPointsCalculated;
+            document.getElementById('conversion-modal').classList.remove('hidden');
+        }
+
+        function closeConversion() {
+            document.getElementById('conversion-modal').classList.add('hidden');
+        }
+
+        async function processActivation() {
+            const codeInput = document.getElementById('access-code-in').value.trim();
+            if(!codeInput) return alert("Please enter a code");
+
+            const { data: codeData, error: codeError } = await vitalisClient
+                .from('access_codes') 
+                .select('*')
+                .eq('code', codeInput)
+                .single();
+
+            if(codeError || !codeData) {
+                return alert("Invalid Code or not found in Vitalis system.");
+            }
+
+            if(codeData.status === 'used' || codeData.is_used === true) {
+                return alert("This code has already been used.");
+            }
+
+            const updatePayload = codeData.hasOwnProperty('status') ? { status: 'used' } : { is_used: true };
+
+            const { error: updateVitalisError } = await vitalisClient
+                .from('access_codes')
+                .update(updatePayload)
+                .eq('id', codeData.id);
+
+            if(updateVitalisError) {
+                return alert("Error consuming code: " + updateVitalisError.message);
+            }
+
+            const { error: activateError } = await client
+                .from('profiles')
+                .update({ is_active: true })
+                .eq('id', user.id);
+
+            if(activateError) {
+                alert("Code consumed but account update failed. Contact Admin.");
+            } else {
+                alert("Account Activated Successfully!");
+                location.reload();
+            }
+        }
+
+        function logout() { location.reload(); }
+        
+        function nextPage(t) { pages[t]++; showTab(t); }
+        function prevPage(t) { if(pages[t]>0) { pages[t]--; showTab(t); } }
+    </script>
+</body>
+</html>
