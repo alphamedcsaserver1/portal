@@ -19,7 +19,7 @@ jobs:
           sed -i "s|VITALIS_URL_PLACEHOLDER|${{ secrets.VITALIS_URL }}|g" index.html
           sed -i "s|VITALIS_KEY_PLACEHOLDER|${{ secrets.VITALIS_KEY }}|g" index.html
 
-      - name: GitHub Pages
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
